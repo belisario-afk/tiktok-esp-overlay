@@ -1,66 +1,56 @@
-import express from "express";
-import { WebSocketServer } from "ws";
-import { WebcastPushConnection } from "tiktok-live-connector";
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+import express from 'express';
+import { config } from 'dotenv';
+import { WebSocketServer } from 'ws';
+// Import TikTokLiveConnector if you use it
+import { TikTokLiveConnector } from 'tiktok-live-connector';
 
-// --- Load environment variables ---
-dotenv.config();
-const PORT = process.env.PORT || 8080;
-const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME || "lmohss";
-if (!TIKTOK_USERNAME) {
-  console.error("Error: Please set TIKTOK_USERNAME in .env or Railway/Render environment variables");
-  process.exit(1);
-}
+config();
 
-// --- Express setup ---
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const app = express();
-const publicDir = path.join(__dirname, "public");
-app.use(express.static(publicDir));
+const PORT = process.env.PORT || 8080;
 
-// Health check for cloud hosts
-app.get("/healthz", (req, res) => res.send("OK"));
+// Serve static files (your overlay) from the 'public' folder
+app.use(express.static('public'));
 
-// --- HTTP Server ---
+// Optional: If someone goes to '/', serve index.html or show a message
+app.get('/', (req, res) => {
+  res.sendFile('index.html', { root: 'public' }, (err) => {
+    if (err) {
+      res.send('TikTok ESP Overlay is running! Place your index.html in the public folder.');
+    }
+  });
+});
+
+// Start the HTTP server
 const server = app.listen(PORT, () => {
-  console.log(`[TikTok-ESP] Web server running at http://localhost:${PORT}/`);
+  console.log(`Server running on port ${PORT}`);
 });
 
-// --- WebSocket Server on /ws ---
-const wss = new WebSocketServer({ server, path: "/ws" });
-const clients = new Set();
+// Set up WebSocket server on the same HTTP server (for overlay communication)
+const wss = new WebSocketServer({ server });
 
-wss.on("connection", (ws) => {
-  clients.add(ws);
-  ws.on("close", () => clients.delete(ws));
-  ws.send(JSON.stringify({ type: "init", data: "Connected to TikTok ESP backend." }));
+wss.on('connection', (ws) => {
+  console.log('Overlay connected via WebSocket!');
+  // Example: send a hello message
+  ws.send(JSON.stringify({ type: 'hello', message: 'Welcome to the TikTok ESP Overlay!' }));
 });
 
-// --- TikTok Live Listener ---
-const tiktok = new WebcastPushConnection(TIKTOK_USERNAME);
+// TikTokLiveConnector usage (if needed)
+if (process.env.TIKTOK_USERNAME) {
+  const connector = new TikTokLiveConnector({ uniqueId: process.env.TIKTOK_USERNAME });
 
-tiktok.connect().then(state => {
-  console.log(`[TikTok-ESP] Connected to TikTok Live as @${TIKTOK_USERNAME} (roomId ${state.roomId})`);
-}).catch(err => {
-  console.error("[TikTok-ESP] Failed to connect to TikTok:", err);
-  process.exit(1);
-});
+  connector.connect();
 
-tiktok.on("gift", data => {
-  const donationEvent = {
-    type: "donation",
-    userId: data.userId,
-    name: data.uniqueId,
-    profilePic: data.profilePictureUrl || "",
-    giftName: data.giftName,
-    repeatCount: data.repeatCount,
-    timestamp: Date.now()
-  };
-  for (const ws of clients) {
-    ws.send(JSON.stringify(donationEvent));
-  }
-  console.log(`[TikTok] ${donationEvent.name} sent ${donationEvent.giftName}`);
-});
+  connector.on('gift', (data) => {
+    // Broadcast gift event to all connected overlays
+    const message = JSON.stringify({ type: 'gift', data });
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) client.send(message);
+    });
+  });
+
+  connector.on('connect', () => console.log('Connected to TikTok Live!'));
+  connector.on('disconnect', () => console.log('Disconnected from TikTok Live.'));
+} else {
+  console.log('Warning: TIKTOK_USERNAME is not set in environment variables!');
+}
