@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TikTok ESP Overlay</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="esp-canvas"></canvas>
+  <div id="config-panel">
+    <button id="config-toggle" title="Settings">⚙️</button>
+    <form id="config-form">
+      <h3>Overlay Settings</h3>
+      <label>Fade Out Time (ms): <input type="number" name="fadeTime" min="1000" max="10000" step="500"></label>
+      <label>ESP Color: <input type="color" name="espColor"></label>
+      <label>Randomize Position: <input type="checkbox" name="randomPos"></label>
+      <button type="submit">Save</button>
+    </form>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
