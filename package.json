@@ -10,7 +10,7 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "tiktok-live-connector": "^2.0.6",
+    "tiktok-live-connector": "^2.0.3",
     "ws": "^8.17.0"
   }
 }
